@@ -40,8 +40,12 @@ class get_coordinates():
         min_y, min_x = [min_max[i][0][0] for i in range(len(min_max))], [min_max[i][0][1] for i in range(len(min_max))]
         max_y, max_x  = [min_max[i][1][0] for i in range(len(min_max))], [min_max[i][1][1] for i in range(len(min_max))]
         min_max_df = pd.DataFrame(np.c_[names, min_y, min_x, max_y, max_x], columns=["filename", "min_lat", "min_lon", "max_lat", "max_lon"])
-        min_max_df["avr_lat"] = (min_max_df["min_lat"].astype('float') + min_max_df["max_lat"].astype('float'))/2
-        min_max_df["avr_lon"] = (min_max_df["min_lon"].astype('float') + min_max_df["max_lon"].astype('float'))/2
+        min_max_df.min_lat = min_max_df.min_lat.astype('float')
+        min_max_df.min_lon = min_max_df.min_lon.astype('float')
+        min_max_df.max_lat = min_max_df.max_lat.astype('float')
+        min_max_df.max_lon = min_max_df.max_lon.astype('float')
+        min_max_df["avr_lat"] = (min_max_df.min_lat + min_max_df.max_lat)/2
+        min_max_df["avr_lon"] = (min_max_df.min_lon + min_max_df.max_lon)/2
         return min_max_df
     
     def return_MissionLog_min_max_coord(self, collect):
