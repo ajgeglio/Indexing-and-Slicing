@@ -37,6 +37,7 @@ class get_coordinates():
     def return_min_max_tif_df(self, tif_files=None):
         min_max = [self.get_min_max_xy(t) for t in tif_files]
         names = [os.path.basename(t) for t in tif_files]
+        reefs = [os.path.basename(os.path.dirname(t)) for t in tif_files]
         min_y, min_x = [min_max[i][0][0] for i in range(len(min_max))], [min_max[i][0][1] for i in range(len(min_max))]
         max_y, max_x  = [min_max[i][1][0] for i in range(len(min_max))], [min_max[i][1][1] for i in range(len(min_max))]
         min_max_df = pd.DataFrame(np.c_[names, min_y, min_x, max_y, max_x], columns=["filename", "min_lat", "min_lon", "max_lat", "max_lon"])
@@ -46,6 +47,7 @@ class get_coordinates():
         min_max_df.max_lon = min_max_df.max_lon.astype('float')
         min_max_df["avr_lat"] = (min_max_df.min_lat + min_max_df.max_lat)/2
         min_max_df["avr_lon"] = (min_max_df.min_lon + min_max_df.max_lon)/2
+        min_max_df["reef"] = reefs
         return min_max_df
     
     def return_MissionLog_min_max_coord(self, collect):
@@ -63,6 +65,18 @@ class get_coordinates():
             min_lat, min_lon, max_lat, max_lon = np.nan, np.nan, np.nan, np.nan
         return min_lat, min_lon, max_lat, max_lon
     
+    def return_headers_min_max_coord(self, combined_headers_file):
+        df = pd.read_pickle(combined_headers_file)
+        collects = df.collect_id.unique()
+        for c in collects:
+            df_tmp = df[df.collect_id == c]
+            lats = df_tmp.Lat_dd
+            lons = df_tmp.Lon_dd
+            min_lat, min_lon = lats.min(), lons.min()
+            max_lat, max_lon = lats.max(), lons.max()
+            min_lat, min_lon, max_lat, max_lon = np.nan, np.nan, np.nan, np.nan
+            return min_lat, min_lon, max_lat, max_lon
+    
     def return_MissionLog_min_max_df(self, collect_list):
         items = []
         for collect in collect_list:
@@ -76,11 +90,12 @@ class get_coordinates():
         iv = lambda x: x.split('_')[2]
         cs = lambda x: x.split('_')[3]
         df["collect_id"] = df.collect_path.map(cid)
-        df["date"] = df.collect_id.map(d)
-        df["collect"] = df.collect_id.map(cn)
-        df["Iver_num"] = df.collect_id.map(iv)
-        df["cam_sys"] = df.collect_id.map(cs)
-        df = df[["collect_path", "collect_id", "date", "collect", "Iver_num", "cam_sys", "min_lat", "min_lon", "max_lat", "max_lon"]]
+        df["date"] = df.collect_id.apply(d)
+        df["date"] = pd.to_datetime(df.date, format="%Y%m%d")
+        df["collect"] = df.collect_id.apply(cn)
+        df["AUV"] = df.collect_id.apply(iv)
+        df["cam_sys"] = df.collect_id.apply(cs)
+        df = df[["collect_path", "collect_id", "date", "collect", "AUV", "cam_sys", "min_lat", "min_lon", "max_lat", "max_lon"]]
         return df
     
 if __name__ == '__main__':
