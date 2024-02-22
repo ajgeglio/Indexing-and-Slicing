@@ -50,6 +50,21 @@ class get_coordinates():
         min_max_df["reef"] = reefs
         return min_max_df
     
+
+    def return_headers_min_max_coord(self, df):
+        collects = df.collect_id.unique()
+        coords = []
+        for c in collects:
+            df_tmp = df[df.collect_id == c]
+            lats = df_tmp.Lat_DD.dropna()
+            lons = df_tmp.Long_DD.dropna()
+            # list1 = [lats.min(), lons.min(), lats.max(), lons.max()]
+            list = [np.percentile(lats, 10), np.percentile(lons, 10), np.percentile(lats, 90), np.percentile(lons, 90), np.percentile(lats, 50), np.percentile(lons, 50)]
+            coords.append(list)
+        collects_lat_lon = pd.DataFrame(np.c_[collects, coords], columns=["collect_id", "min_lat", "min_lon", "max_lat", "max_lon", "med_lat", "med_lon"])
+        return collects_lat_lon
+    
+
     def return_MissionLog_min_max_coord(self, collect):
         log_paths = glob.glob(os.path.join(collect,'logs','*','Logs','*.log'))
         try:
@@ -64,18 +79,6 @@ class get_coordinates():
         except:
             min_lat, min_lon, max_lat, max_lon = np.nan, np.nan, np.nan, np.nan
         return min_lat, min_lon, max_lat, max_lon
-    
-    def return_headers_min_max_coord(self, combined_headers_file):
-        df = pd.read_pickle(combined_headers_file)
-        collects = df.collect_id.unique()
-        for c in collects:
-            df_tmp = df[df.collect_id == c]
-            lats = df_tmp.Lat_dd
-            lons = df_tmp.Lon_dd
-            min_lat, min_lon = lats.min(), lons.min()
-            max_lat, max_lon = lats.max(), lons.max()
-            min_lat, min_lon, max_lat, max_lon = np.nan, np.nan, np.nan, np.nan
-            return min_lat, min_lon, max_lat, max_lon
     
     def return_MissionLog_min_max_df(self, collect_list):
         items = []

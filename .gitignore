@@ -2,3 +2,6 @@
 *.csv
 *.pickle
 *pycache*
+__Archive*
+DEM*
+2023_substrate_labelcheck*
