@@ -4,6 +4,8 @@ import datetime
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import shutil
+import glob
 def list_files_exclude_pattern(filepath, filetype, pat):
    paths = []
    for root, dirs, files in os.walk(filepath):
@@ -41,6 +43,33 @@ def list_files(filepath, filetype):
          if file.lower().endswith(filetype.lower()):
             paths.append(os.path.join(root, file))
    return(paths)
+
+def create_empty_txt_files(filename_list, ext=".txt"):
+    for fil in filename_list:
+        file = fil + f"{ext}"
+        with open(file, 'w'):
+            continue
+
+def make_move_df(orig_pth, new_pth, ext = ".txt"):
+    descr = os.path.join(orig_pth,"*"+ext)
+    files = glob.glob(descr)
+    df = pd.DataFrame(files, columns=["original_path"])
+    bn = lambda x: os.path.basename(x)
+    df['original_filename'] = df.original_path.apply(bn)
+    np = lambda x: os.path.join(new_pth,x)
+    df['new_path'] = df.original_filename.apply(np)
+    return df
+
+def move_lbl_files(move_df):
+    i = 0
+    k = 0
+    l = len(move_df)
+    for src, dst in zip(move_df.original_path, move_df.new_path):
+        if not os.path.exists(dst):
+            shutil.copy(src,dst)
+            k+=1
+        i+=1
+        print("file", i,"/",l,"new items found", k, end=" \r")
 
 def make_out_folder():
     t = datetime.datetime.now()
