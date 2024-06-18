@@ -84,36 +84,49 @@ def make_out_folder():
 def create_image_df_save_pckle(image_list, out_folder, year):
     df_imgs = pd.DataFrame(image_list, columns=["image_path"])
     im = lambda x: os.path.basename(x)
-    df_imgs["image_name"] = df_imgs.image_path.map(im)
+    df_imgs["filename"] = df_imgs.image_path.map(im)
     df_imgs = df_imgs.drop_duplicates(subset="image_path")
+    df_imgs['collect_id'] = df_imgs["image_path"].str.extract(r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])')
     df_imgs.to_pickle(os.path.join(out_folder,f"{year}_imgs.pickle"))
+    df_imgs.to_csv(os.path.join(out_folder,f"{year}_imgs.csv"))
     print(year, df_imgs.shape) # (1993212, 2) (2009213, 2) (2253118, 2)
     return df_imgs
 
-def combine_headers(headers_paths, columns_, header_dict):
-    df = pd.DataFrame(columns=columns_)
-    for path in headers_paths:
+def combine_headers(headers_paths):
+    l = len(headers_paths)
+    # Initial header
+    path = headers_paths[0]
+    df = pd.read_csv(path)
+    df.rename(columns={df.columns[0]: "Time_s"}, inplace=True)
+    pattern = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
+    try:
+        collect_id = re.findall(pattern, path)[0]
+    except: collect_id = np.nan
+    df['collect_id'] = collect_id
+    # Concatenation loop
+    for i in range(1,l):
+        path = headers_paths[i]
+        tempdf = pd.read_csv(path, low_memory=False)
         pattern = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
         try:
             collect_id = re.findall(pattern, path)[0]
         except: collect_id = np.nan
-        tempdf = pd.read_csv(path, header=0)
-        tempdf.rename(columns=header_dict, inplace=True)
         tempdf['collect_id'] = collect_id
-        newcolumns = tempdf.columns[tempdf.columns.isin(columns_)]
-        dfs = [df, tempdf[newcolumns]]
-        df = pd.concat(dfs, axis=0, ignore_index=True)
-        df = df.dropna(subset="EpochTime")
+        tempdf.rename(columns={tempdf.columns[0]: "Time_s"}, inplace=True)
+        dfs = [df, tempdf]
+        df = pd.concat(dfs)
+        # df = df.dropna(subset="Time_s")
         df = df.drop_duplicates()
-    df = df.sort_values(by="EpochTime")
+    # df = df.sort_values(by="EpochTime")
+    df = df.sort_values(by='Time_s')
     # df = df.drop_duplicates(subset="image_name")
-    im = lambda x: os.path.basename(x)
-    df["image_name"] = df.image_name.apply(im)
-    dt = lambda x: datetime.datetime.fromtimestamp(x)
-    df['Datetime'] = df['EpochTime'].apply(dt)
-    return df.drop_duplicates()
+    # im = lambda x: os.path.basename(x)
+    # df["image_name"] = df.image_name.apply(im)
+    # dt = lambda x: datetime.datetime.fromtimestamp(x)
+    # df['Datetime'] = df['Time_s'].apply(dt)
+    return df
 
-def clean_combined_header(df, year, out_folder, dpth = 1, alt = 4, clean_lat_lon = True):
+def clean_combined_header(df, year, out_folder, dpth = 0, alt = 4, clean_lat_lon = True):
     ## Cleaning for Altitude and depth
     df = df[(df.Alt_m < alt) & (df.Alt_m > 0) & (df.AUV_depth_m > dpth)]
     ## Cleaning lat lon columns
@@ -166,22 +179,22 @@ def plot_collect_distribution(df1, df2=pd.DataFrame(),title=None, lbl1=None, lbl
     return
 
 ## Here I add collect ID, AUV ID, and camera system columns
-def create_unpacked_images_metatada_df(header_df, image_df, collect_df, year):
+def create_unpacked_images_metatada_df(header_df, image_df, year):
     # merging and keeping only image names that are unpacked
-    df_unp = header_df[header_df.image_name.isin(image_df.image_name)]
-    df_unp = pd.merge(header_df, image_df, on="image_name")
-    df_unp['Datetime'] = pd.to_datetime(df_unp.Datetime, format='mixed')
-    df_unp['date'] = df_unp.Datetime.dt.date
-    df_unp = df_unp.sort_values(by='Datetime')
-    df_unp = df_unp.drop_duplicates(subset='image_path')
+    image_df.filename = image_df.filename.str.replace("CI", "PI")
+    df_unp = header_df[header_df.filename.isin(image_df.filename)]
+    df_unp = pd.merge(header_df, image_df, on="filename")
+    # df_unp['Datetime'] = pd.to_datetime(df_unp.Datetime, format='mixed')
+    # df_unp['date'] = df_unp.Datetime.dt.date
+    df_unp = df_unp.sort_values(by='Time_s')
+    df_unp = df_unp.drop_duplicates(subset='filename')
     ## Extracting collect id from filepaths where possible
-    df_unp['collect_id_img'] = df_unp["image_path"].str.extract(r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])')
-    df_unp['AUV'] = df_unp["collect_id"].str.extract(     r'[0-9]{8}_[0-9]{3}_([a-z,A-Z]+[0-9][0-9][0-9][0-9])_[a-z,A-Z]+[0-2]')
-    df_unp['cam_sys'] = df_unp["collect_id"].str.extract( r'[0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_([a-z,A-Z]+[0-2])')
+    # df_unp['AUV'] = df_unp["collect_id"].str.extract(     r'[0-9]{8}_[0-9]{3}_([a-z,A-Z]+[0-9][0-9][0-9][0-9])_[a-z,A-Z]+[0-2]')
+    # df_unp['cam_sys'] = df_unp["collect_id"].str.extract( r'[0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_([a-z,A-Z]+[0-2])')
     ## Where usability is blank
-    nu_idx = df_unp[df_unp.Usability.isna()].index
-    nu_idx_usability = df_unp.loc[nu_idx,"image_path"].str.extract(r'\W+([a-z,A-Z]*sab[a-z,A-Z]+).*')
-    df_unp.loc[nu_idx, "Usability"] = nu_idx_usability.values
+    # nu_idx = df_unp[df_unp.Usability.isna()].index
+    # nu_idx_usability = df_unp.loc[nu_idx,"image_path"].str.extract(r'\W+([a-z,A-Z]*sab[a-z,A-Z]+).*')
+    # df_unp.loc[nu_idx, "Usability"] = nu_idx_usability.values
     df_unp.to_csv(f"all_unpacked_images_metadata_{year}.csv")
     print(year, df_unp.shape) # (599180, 19) (588246, 19) (627826, 21) (636013, 21)
     return df_unp
