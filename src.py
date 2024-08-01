@@ -7,6 +7,20 @@ import matplotlib.pyplot as plt
 import shutil
 import glob
 
+class return_time:
+    def __init__(self) -> None:
+        pass
+    def get_time_obj(self, time_s):
+        return datetime.datetime.fromtimestamp(time_s)
+    def get_Y(self, time_s):
+        return self.get_time_obj(time_s).strftime('%Y') 
+    def get_m(self, time_s):
+        return self.get_time_obj(time_s).strftime('%m')
+    def get_d(self, time_s):
+        return self.get_time_obj(time_s).strftime('%d')
+    def get_t(self, time_s):
+        return self.get_time_obj(time_s).strftime('%H:%M:%S')
+
 def copy_imgs_2_drive(df, dest_folder):
     img_pth_list = list(df.loc[:, 'image_path'])
     img_nam_list = list(df.loc[:, 'filename'])
