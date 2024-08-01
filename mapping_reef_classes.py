@@ -6,9 +6,21 @@ import os
 from osgeo import gdal, osr
 import numpy as np
 
-class get_coordinates():
+class get_coordinates:
     def __init__(self) -> None:
         pass
+
+    def reef_overlap(df_tiffs, df_collects):
+        df = df_collects.copy()
+        apx = (1/60)/2
+        out_df = pd.DataFrame(columns=["COLLECT ID", "OP_DATE", "SITE NAME", "SURVEY NAME", "LATTITUDE", "LONGITUDE", "REEF"])
+        for i in range(len(df_tiffs)):
+            reef = df_tiffs.loc[i]
+            idx = df[(reef.max_lat > df.LATTITUDE - apx) & (reef.min_lat < df.LATTITUDE + apx) & (reef.max_lon > df.LONGITUDE - apx) & (reef.min_lon < df.LONGITUDE + apx)].index
+            new_df = df.loc[idx]
+            new_df['REEF'] = reef.reef
+            out_df = pd.concat([out_df, new_df])
+        return out_df
 
     def get_min_max_xy(self, tif_file):
         ds = gdal.Open(tif_file)
@@ -37,7 +49,8 @@ class get_coordinates():
     def return_min_max_tif_df(self, tif_files=None):
         min_max = [self.get_min_max_xy(t) for t in tif_files]
         names = [os.path.basename(t) for t in tif_files]
-        reefs = [os.path.basename(os.path.dirname(t)) for t in tif_files]
+        # reefs = [os.path.basename(os.path.dirname(t)) for t in tif_files]
+        reefs = [n.split("_")[0] for n in names]
         min_y, min_x = [min_max[i][0][0] for i in range(len(min_max))], [min_max[i][0][1] for i in range(len(min_max))]
         max_y, max_x  = [min_max[i][1][0] for i in range(len(min_max))], [min_max[i][1][1] for i in range(len(min_max))]
         min_max_df = pd.DataFrame(np.c_[names, min_y, min_x, max_y, max_x], columns=["filename", "min_lat", "min_lon", "max_lat", "max_lon"])

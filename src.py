@@ -6,6 +6,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 import glob
+
+def copy_imgs_2_drive(df, dest_folder):
+    img_pth_list = list(df.loc[:, 'image_path'])
+    img_nam_list = list(df.loc[:, 'filename'])
+    num_imgs = len(img_nam_list)
+    i=0
+    for img_pth, img_name in zip(img_pth_list, img_nam_list):
+        src = img_pth
+        dest = os.path.join(dest_folder, img_name)
+        # File copy was interrupted often due to network, added src/dest comparison
+        if os.path.exists(src):
+            if os.path.exists(dest):
+                if os.stat(src).st_size == os.stat(dest).st_size:
+                    i+=1
+                else:
+                    shutil.copy(src, dest)
+                    i+=1
+            else:
+                shutil.copy(src, dest)
+                i+=1
+            print("Copying", i,"/",num_imgs, end='  \r')
+        else: print(f"{src} not found")
+        
+def create_collect_id_df(imgs_glob):
+    ''' create a dataframe of collect ids based on a list of images'''
+    df = pd.DataFrame()
+    df['image_path'] = imgs_glob
+    df['filename'] = df.image_path.apply(lambda x: os.path.basename(x))
+    folder = df.image_path.apply(lambda x: os.path.basename(os.path.dirname(os.path.dirname(x))))
+    pattern = r"([0-9]{8}_[0-9]{3}_[a-z,A-Z]{4}[0-9]{4}_[a-z,A-Z]{3}[0-2]{1})"
+    collect_id_match = folder.apply(lambda x: re.search(pattern, x))
+    collect_ids = [match.group() for match in collect_id_match if match != None]
+    col_idx = collect_id_match[collect_id_match.values!=None].index
+    df = df.loc[col_idx]
+    df['collect_id'] = collect_ids
+    return df
+    
 def list_files_exclude_pattern(filepath, filetype, pat):
    paths = []
    for root, dirs, files in os.walk(filepath):
