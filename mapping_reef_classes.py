@@ -10,13 +10,15 @@ class get_coordinates:
     def __init__(self) -> None:
         pass
 
-    def reef_overlap(df_tiffs, df_collects):
-        df = df_collects.copy()
+    def reef_overlap(df_tiffs, OP_TABLE_path):
+        OP_TABLE_df = pd.read_excel(OP_TABLE_path)
+        OP_TABLE_df = OP_TABLE_df[["COLLECT ID", "OP_DATE", "SITE NAME", "SURVEY NAME", "LATITUDE", "LONGITUDE"]]
+        df = OP_TABLE_df.copy()
         apx = (1/60)/2
-        out_df = pd.DataFrame(columns=["COLLECT ID", "OP_DATE", "SITE NAME", "SURVEY NAME", "LATTITUDE", "LONGITUDE", "REEF"])
+        out_df = pd.DataFrame(columns=["COLLECT ID", "OP_DATE", "SITE NAME", "SURVEY NAME", "LATITUDE", "LONGITUDE", "REEF"])
         for i in range(len(df_tiffs)):
             reef = df_tiffs.loc[i]
-            idx = df[(reef.max_lat > df.LATTITUDE - apx) & (reef.min_lat < df.LATTITUDE + apx) & (reef.max_lon > df.LONGITUDE - apx) & (reef.min_lon < df.LONGITUDE + apx)].index
+            idx = df[(reef.max_lat > df.LATITUDE - apx) & (reef.min_lat < df.LATITUDE + apx) & (reef.max_lon > df.LONGITUDE - apx) & (reef.min_lon < df.LONGITUDE + apx)].index
             new_df = df.loc[idx]
             new_df['REEF'] = reef.reef
             out_df = pd.concat([out_df, new_df])
@@ -46,7 +48,7 @@ class get_coordinates:
         #get the coordinates in lat long
         return transform.TransformPoint(miny,minx)[0:2], transform.TransformPoint(maxy,maxx)[0:2]
 
-    def return_min_max_tif_df(self, tif_files=None):
+    def return_min_max_tif_df(self, reef_dict, tif_files=None):
         min_max = [self.get_min_max_xy(t) for t in tif_files]
         names = [os.path.basename(t) for t in tif_files]
         # reefs = [os.path.basename(os.path.dirname(t)) for t in tif_files]
@@ -61,23 +63,47 @@ class get_coordinates:
         min_max_df["avr_lat"] = (min_max_df.min_lat + min_max_df.max_lat)/2
         min_max_df["avr_lon"] = (min_max_df.min_lon + min_max_df.max_lon)/2
         min_max_df["reef"] = reefs
+        min_max_df["filepath"] = tif_files
+        min_max_df = min_max_df.drop_duplicates(subset="reef").reset_index(drop=True)
+        min_max_df["Reef_Name"] = min_max_df.reef.apply(lambda x: reef_dict[x])
         return min_max_df
     
-
+    def log_col_lat_lon(self, root):
+        out_df = pd.DataFrame()
+        for collect_id in os.listdir(root):
+            logpath = r"logs\*\Logs\*.log"
+            folder = os.path.join(root,collect_id,logpath)
+            logs = glob.glob(folder)
+            log_df = pd.DataFrame()
+            for log in logs:
+                log_df_t = pd.read_csv(log, delimiter=";")
+                log_df = pd.concat([log_df, log_df_t])
+            try:
+                med_lat, med_lon = log_df.Latitude.median(), log_df.Longitude.median()
+            except:
+                med_lat, med_lon = np.nan, np.nan
+            df = pd.DataFrame([[collect_id, med_lat, med_lon]], columns=["collect_id", "Latitude", "Longitude"])
+            out_df = pd.concat([out_df, df])
+        return out_df
+    
     def return_headers_min_max_coord(self, df):
         collects = df.collect_id.unique()
         coords = []
         for c in collects:
             df_tmp = df[df.collect_id == c]
-            lats = df_tmp.Lat_DD.dropna()
-            lons = df_tmp.Long_DD.dropna()
-            # list1 = [lats.min(), lons.min(), lats.max(), lons.max()]
-            list = [np.percentile(lats, 10), np.percentile(lons, 10), np.percentile(lats, 90), np.percentile(lons, 90), np.percentile(lats, 50), np.percentile(lons, 50)]
+            df_tmp = df_tmp[df_tmp.Usability == "Usable"]
+            lats = df_tmp.Latitude.dropna()
+            lons = df_tmp.Longitude.dropna()
+            try:
+                # list1 = [lats.min(), lons.min(), lats.max(), lons.max()]
+                list = [np.percentile(lats, 10), np.percentile(lons, 10), np.percentile(lats, 90), np.percentile(lons, 90), np.percentile(lats, 50), np.percentile(lons, 50)]
+            except IndexError:
+                print("not lat lon in ", c)
+                list = [np.nan]*6
             coords.append(list)
         collects_lat_lon = pd.DataFrame(np.c_[collects, coords], columns=["collect_id", "min_lat", "min_lon", "max_lat", "max_lon", "med_lat", "med_lon"])
         return collects_lat_lon
     
-
     def return_MissionLog_min_max_coord(self, collect):
         log_paths = glob.glob(os.path.join(collect,'logs','*','Logs','*.log'))
         try:
