@@ -164,20 +164,14 @@ def combine_headers(headers_paths):
     l = len(headers_paths)
     df = pd.DataFrame()
     # Concatenation loop
-    for i in range(l):
-        path = headers_paths[i]
-        tempdf = pd.read_csv(path, low_memory=False)
-        # pat1 = '([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9]*_[a-z,A-Z]*[0-9]*[a-z,A-Z]*)'
-        # pattern = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
-        # try:
-        #     collect_id = re.findall(pat1, path)[0]
-        # except: collect_id = np.nan
-        # tempdf['collect_id'] = collect_id
+    # for i in range(l):
+    for path in headers_paths:
+        # path = headers_paths[i]
+        tempdf = pd.read_csv(path, low_memory=False).drop(columns="collect_id", errors="ignore")
         tempdf.rename(columns={tempdf.columns[0]: "Time_s"}, inplace=True)
         df = pd.concat([df, tempdf])
-        df = df.drop_duplicates()
     df = df.sort_values(by='Time_s')
-    return df
+    return df.drop_duplicates()
 
 def clean_combined_header(df, year, out_folder, dpth = 0, alt = 4, clean_lat_lon = True):
     ## Cleaning for Altitude and depth (NO LONGER USE)
