@@ -1,0 +1,16 @@
+# conda env create -f enviroment.yml
+name: img_processing
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - pandas
+  - geopandas
+  - matplotlib
+  - scikit-image
+  - scikit-learn
+  - opencv
+  - pillow
+  - ipykernel
+  - gdal
