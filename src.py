@@ -154,7 +154,7 @@ def create_image_df_save_pckle(image_list, out_folder, year):
     df_imgs = df_imgs.drop_duplicates(subset="image_path")
     pat1 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9]*_[a-z,A-Z]*[0-9]*[a-z,A-Z]*)'
     pat2 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
-    df_imgs['collect_id'] = df_imgs["image_path"].str.extract(pat1)
+    # df_imgs['collect_id'] = df_imgs["image_path"].str.extract(pat1)
     df_imgs.to_pickle(os.path.join(out_folder,f"{year}_imgs.pickle"))
     df_imgs.to_csv(os.path.join(out_folder,f"{year}_imgs.csv"))
     print(year, df_imgs.shape) # (1993212, 2) (2009213, 2) (2253118, 2)
@@ -169,6 +169,9 @@ def combine_headers(headers_paths):
         # path = headers_paths[i]
         tempdf = pd.read_csv(path, low_memory=False).drop(columns="collect_id", errors="ignore")
         tempdf.rename(columns={tempdf.columns[0]: "Time_s"}, inplace=True)
+        pat1 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9]*_[a-z,A-Z]*[0-9]*[a-z,A-Z]*)'
+        pat2 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
+        tempdf['collect_id'] = re.findall(pat1, path)[0]
         df = pd.concat([df, tempdf])
     df = df.sort_values(by='Time_s')
     return df.drop_duplicates()
@@ -191,15 +194,15 @@ def create_unpacked_images_metatada_df(header_df, image_df, year):
     image_df.filename = image_df.filename.str.replace("CI", "PI")
     df_unp = header_df[header_df.filename.isin(image_df.filename)]
     df_unp = pd.merge(header_df, image_df, on="filename")
-    # df_unp['Datetime'] = pd.to_datetime(df_unp.Datetime, format='mixed')
-    # df_unp['date'] = df_unp.Datetime.dt.date
     df_unp = df_unp.sort_values(by='Time_s')
     df_unp = df_unp.drop_duplicates(subset='filename')
     ## Extracting collect id from filepaths where possible
-    # df_unp['AUV'] = df_unp["collect_id"].str.extract(     r'[0-9]{8}_[0-9]{3}_([a-z,A-Z]+[0-9][0-9][0-9][0-9])_[a-z,A-Z]+[0-2]')
-    # df_unp['cam_sys'] = df_unp["collect_id"].str.extract( r'[0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_([a-z,A-Z]+[0-2])')
+    df_unp["year"] = df_unp.Time_s.apply(return_time().get_Y)
+    df_unp["month"] = df_unp.Time_s.apply(return_time().get_m)
+    df_unp["day"] = df_unp.Time_s.apply(return_time().get_d)
+    df_unp["time"] = df_unp.Time_s.apply(return_time().get_t)
     df_unp.to_csv(f"all_unpacked_images_metadata_{year}.csv")
-    print(year, df_unp.shape) # (599180, 19) (588246, 19) (627826, 21) (636013, 21)
+    print(year, df_unp.shape) 
     return df_unp
 
 def plot_epoch_time(df1, df2=pd.DataFrame(),title=None, lbl1=None, lbl2=None):
