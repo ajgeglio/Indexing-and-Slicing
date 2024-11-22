@@ -6,20 +6,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 import glob
+import pickle
 
 class return_time:
     def __init__(self) -> None:
         pass
     def get_time_obj(self, time_s):
-        return datetime.datetime.fromtimestamp(time_s)
+        # return datetime.datetime.fromtimestamp(time_s)
+        return datetime.datetime.fromtimestamp(time_s) if pd.notnull(time_s) else np.nan
     def get_Y(self, time_s):
-        return self.get_time_obj(time_s).strftime('%Y') 
+        return self.get_time_obj(time_s).strftime('%Y') if pd.notnull(time_s) else np.nan
     def get_m(self, time_s):
-        return self.get_time_obj(time_s).strftime('%m')
+        return self.get_time_obj(time_s).strftime('%m') if pd.notnull(time_s) else np.nan
     def get_d(self, time_s):
-        return self.get_time_obj(time_s).strftime('%d')
+        return self.get_time_obj(time_s).strftime('%d') if pd.notnull(time_s) else np.nan
     def get_t(self, time_s):
-        return self.get_time_obj(time_s).strftime('%H:%M:%S')
+        return self.get_time_obj(time_s).strftime('%H:%M:%S') if pd.notnull(time_s) else np.nan
 
 def copy_img_df(df, dest_folder):
     l = len(df)
@@ -56,7 +58,15 @@ def copy_imgs(img_pths, dest_folder):
                 shutil.copy(src, dst)
             print("Copying", i,"/",l, end='  \r')
         else: print(f"{src} not found")
-        
+
+def load_pickle(pickle_pth): #unpickling
+    with open(pickle_pth, "rb") as fp:   
+        pf = pickle.load(fp)
+    return pf
+def dump_pickle(pickle_pth, pf): #pickling
+    with open(pickle_pth, "wb") as fp:
+        pickle.dump(pf, fp)
+
 def create_collect_id_df(imgs_glob):
     ''' create a dataframe of collect ids based on a list of images'''
     df = pd.DataFrame()
@@ -147,15 +157,14 @@ def make_datetime_folder():
     print(out_folder)
     return out_folder, Ymmdd
 
-def create_image_df_save_pckle(image_list, out_folder, year):
+def create_image_df_save_csv(image_list, out_folder, year):
     df_imgs = pd.DataFrame(image_list, columns=["image_path"])
     im = lambda x: os.path.basename(x)
     df_imgs["filename"] = df_imgs.image_path.map(im)
-    df_imgs = df_imgs.drop_duplicates(subset="image_path")
+    # df_imgs = df_imgs.drop_duplicates(subset="image_path")
     pat1 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9]*_[a-z,A-Z]*[0-9]*[a-z,A-Z]*)'
     pat2 = r'([0-9]{8}_[0-9]{3}_[a-z,A-Z]+[0-9][0-9][0-9][0-9]_[a-z,A-Z]+[0-2])'
-    # df_imgs['collect_id'] = df_imgs["image_path"].str.extract(pat1)
-    df_imgs.to_pickle(os.path.join(out_folder,f"{year}_imgs.pickle"))
+    df_imgs['collect_id'] = df_imgs["image_path"].str.extract(pat1)
     df_imgs.to_csv(os.path.join(out_folder,f"{year}_imgs.csv"))
     print(year, df_imgs.shape) # (1993212, 2) (2009213, 2) (2253118, 2)
     return df_imgs
@@ -189,13 +198,21 @@ def clean_combined_header(df, year, out_folder, dpth = 0, alt = 4, clean_lat_lon
     print(year, df.shape) # (2416264, 86) (2417064, 86) (2418247, 89) (2434252, 87) (2492433, 17) (2692480, 17)
     return df
 
-def create_unpacked_images_metatada_df(header_df, image_df, year):
+def create_unpacked_images_metatada_df(header_df, image_df, year, ext = ".png", old_filenames = False):
     # merging and keeping only image names that are unpacked
     image_df.filename = image_df.filename.str.replace("CI", "PI")
     df_unp = header_df[header_df.filename.isin(image_df.filename)]
-    df_unp = pd.merge(header_df, image_df, on="filename")
+    df_unp = pd.merge(header_df, image_df, on=["filename", "collect_id"], how = 'inner')
+    if old_filenames:
+        ofn = lambda x: "image_raw_" + x.split(".")[0].split("_")[1][-5:] + x.split(".")[0].split("_")[2] + ext
+        header_df2 = header_df.copy()
+        old_filename = header_df2.filename.apply(ofn)
+        header_df2["filename"] = old_filename.values
+        df_unp2 = header_df2[header_df2.filename.isin(image_df.filename)]
+        df_unp2 = pd.merge(df_unp2, image_df, on=["filename", "collect_id"], how = 'inner')
+        df_unp = pd.concat([df_unp, df_unp2])
     df_unp = df_unp.sort_values(by='Time_s')
-    df_unp = df_unp.drop_duplicates(subset='filename')
+    assert df_unp.shape[0] == df_unp.drop_duplicates(subset=['Time_s','filename','collect_id']).shape[0]
     ## Extracting collect id from filepaths where possible
     df_unp["year"] = df_unp.Time_s.apply(return_time().get_Y)
     df_unp["month"] = df_unp.Time_s.apply(return_time().get_m)
@@ -204,6 +221,39 @@ def create_unpacked_images_metatada_df(header_df, image_df, year):
     df_unp.to_csv(f"all_unpacked_images_metadata_{year}.csv")
     print(year, df_unp.shape) 
     return df_unp
+
+def create_unpacked_images_no_collect_metatada_df(header_df, image_df, descr, ext=".png", old_filenames=False):
+    # Merging and keeping only image names that are unpacked
+    image_df.filename = image_df.filename.str.replace("CI", "PI")
+    header_df.filename = header_df.filename.str.replace("CI", "PI")
+    # Extracting collect id from filepaths where possible
+    header_df["year"] = header_df.Time_s.apply(return_time().get_Y)
+    header_df["month"] = header_df.Time_s.apply(return_time().get_m)
+    header_df["day"] = header_df.Time_s.apply(return_time().get_d)
+    header_df["time"] = header_df.Time_s.apply(return_time().get_t)
+    image_df1 = image_df[~image_df.filename.str.contains("image_raw")]
+    df_unp = header_df[header_df.filename.isin(image_df.filename)]
+    df_unp = pd.merge(df_unp, image_df1, on="filename", how='right')
+    print("After first merge, df_unp shape:", df_unp.shape)
+    if old_filenames:
+        ofn = lambda x: "image_raw_" + x.split(".")[0].split("_")[1][-5:] + x.split(".")[0].split("_")[2] + ext
+        header_df2 = header_df[header_df.year.isin(["2019", "2020"])].copy()
+        old_filename = header_df2.filename.apply(ofn)
+        header_df2["filename"] = old_filename.values
+        image_df2 = image_df[image_df.filename.str.contains("image_raw")]
+        df_unp2 = header_df2[header_df2.filename.isin(image_df2.filename)]
+        df_unp2 = pd.merge(df_unp2, image_df2, on="filename", how='right')
+        print("After second merge (old filenames), df_unp2 shape:", df_unp2.shape)
+        df_unp = pd.concat([df_unp, df_unp2])
+    df_unp = df_unp.sort_values(by='Time_s')
+    print("After concatenation (if applicable), df_unp shape:", df_unp.shape)
+    # Optional: Check for duplicate filenames
+    dup_fn_df = df_unp[df_unp.duplicated(subset='filename', keep=False)]
+    df_unp = df_unp[~df_unp.duplicated(subset='filename', keep=False)]
+    if not dup_fn_df.empty: print("Duplicate filenames detected:",dup_fn_df.shape)
+    df_unp.to_csv(f"all_unpacked_images_metadata_{descr}.csv")
+    print("after duplicates removed", df_unp.shape)
+    return df_unp, dup_fn_df
 
 def plot_epoch_time(df1, df2=pd.DataFrame(),title=None, lbl1=None, lbl2=None):
     tdt = lambda x: datetime.datetime.fromtimestamp(x)
