@@ -200,30 +200,33 @@ def clean_combined_header(df, year, out_folder, dpth = 0, alt = 4, clean_lat_lon
 
 def create_unpacked_images_metatada_df(header_df, image_df, year, ext = ".png", old_filenames = False):
     # merging and keeping only image names that are unpacked
+    image_df, header_df = image_df.copy(), header_df.copy()
+    header_df["year"] = header_df.Time_s.apply(return_time().get_Y)
+    header_df["month"] = header_df.Time_s.apply(return_time().get_m)
+    header_df["day"] = header_df.Time_s.apply(return_time().get_d)
+    header_df["time"] = header_df.Time_s.apply(return_time().get_t)
+    image_df["old_filename"] = image_df.filename
     image_df.filename = image_df.filename.str.replace("CI", "PI")
     df_unp = header_df[header_df.filename.isin(image_df.filename)]
-    df_unp = pd.merge(header_df, image_df, on=["filename", "collect_id"], how = 'inner')
+    df_unp = pd.merge(df_unp, image_df, on=["filename", "collect_id"], how = 'inner')
     if old_filenames:
         ofn = lambda x: "image_raw_" + x.split(".")[0].split("_")[1][-5:] + x.split(".")[0].split("_")[2] + ext
-        header_df2 = header_df.copy()
+        header_df2 = header_df[header_df.year.isin(["2019", "2020"])].copy()
         old_filename = header_df2.filename.apply(ofn)
-        header_df2["filename"] = old_filename.values
-        df_unp2 = header_df2[header_df2.filename.isin(image_df.filename)]
-        df_unp2 = pd.merge(df_unp2, image_df, on=["filename", "collect_id"], how = 'inner')
+        header_df2["old_filename"] = old_filename.values
+        df_unp2 = header_df2[header_df2.old_filename.isin(image_df.filename)]
+        df_unp2 = pd.merge(df_unp2, image_df[["old_filename", "collect_id", "image_path"]], on=["old_filename", "collect_id"], how = 'inner')
         df_unp = pd.concat([df_unp, df_unp2])
     df_unp = df_unp.sort_values(by='Time_s')
     assert df_unp.shape[0] == df_unp.drop_duplicates(subset=['Time_s','filename','collect_id']).shape[0]
     ## Extracting collect id from filepaths where possible
-    df_unp["year"] = df_unp.Time_s.apply(return_time().get_Y)
-    df_unp["month"] = df_unp.Time_s.apply(return_time().get_m)
-    df_unp["day"] = df_unp.Time_s.apply(return_time().get_d)
-    df_unp["time"] = df_unp.Time_s.apply(return_time().get_t)
     df_unp.to_csv(f"all_unpacked_images_metadata_{year}.csv")
     print(year, df_unp.shape) 
     return df_unp
 
 def create_unpacked_images_no_collect_metatada_df(header_df, image_df, descr, ext=".png", old_filenames=False):
     # Merging and keeping only image names that are unpacked
+    image_df, header_df = image_df.copy(), header_df.copy()
     image_df.filename = image_df.filename.str.replace("CI", "PI")
     header_df.filename = header_df.filename.str.replace("CI", "PI")
     # Extracting collect id from filepaths where possible
@@ -233,16 +236,16 @@ def create_unpacked_images_no_collect_metatada_df(header_df, image_df, descr, ex
     header_df["time"] = header_df.Time_s.apply(return_time().get_t)
     image_df1 = image_df[~image_df.filename.str.contains("image_raw")]
     df_unp = header_df[header_df.filename.isin(image_df.filename)]
-    df_unp = pd.merge(df_unp, image_df1, on="filename", how='right')
+    df_unp = pd.merge(df_unp, image_df1, on="filename", how='left')
     print("After first merge, df_unp shape:", df_unp.shape)
-    if old_filenames:
+    if old_filenames: #assumes the header df has new filenamaes and needs to match to the old image names of images saved that way
         ofn = lambda x: "image_raw_" + x.split(".")[0].split("_")[1][-5:] + x.split(".")[0].split("_")[2] + ext
         header_df2 = header_df[header_df.year.isin(["2019", "2020"])].copy()
         old_filename = header_df2.filename.apply(ofn)
         header_df2["filename"] = old_filename.values
         image_df2 = image_df[image_df.filename.str.contains("image_raw")]
         df_unp2 = header_df2[header_df2.filename.isin(image_df2.filename)]
-        df_unp2 = pd.merge(df_unp2, image_df2, on="filename", how='right')
+        df_unp2 = pd.merge(df_unp2, image_df2, on="filename", how='left')
         print("After second merge (old filenames), df_unp2 shape:", df_unp2.shape)
         df_unp = pd.concat([df_unp, df_unp2])
     df_unp = df_unp.sort_values(by='Time_s')
