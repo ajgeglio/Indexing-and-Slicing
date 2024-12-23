@@ -1,0 +1,11 @@
+2019-*
+*.csv
+*.pickle
+*pycache*
+__Archive*
+DEM*
+substrate_labelcheck*
+*xlsx
+*test_geomorphons
+*.txt
+*.jpg
