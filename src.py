@@ -23,6 +23,15 @@ class return_time:
     def get_t(self, time_s):
         return self.get_time_obj(time_s).strftime('%H:%M:%S') if pd.notnull(time_s) else np.nan
 
+def bagfile_from_image(filename, aluim_path, window=30):
+    image_id = filename.split(".")[0]
+    time_sec = float(image_id.split("_")[1] +"." + image_id.split("_")[2])
+    print("Image Date and Time:")
+    print(datetime.datetime.fromtimestamp(time_sec).strftime('%Y-%m-%d %H:%M:%S'))
+    aluim = pd.read_csv(aluim_path, index_col=0, low_memory=False)
+    aluim21_window = aluim[(aluim.Time_s >= time_sec-window/2) & (aluim.Time_s <= time_sec+window/2)]
+    print(aluim21_window.BagFile.values)
+
 def copy_img_df(df, dest_folder):
     l = len(df)
     i=0
